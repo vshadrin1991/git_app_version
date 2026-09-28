@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Git Version Tagger
+Comment=Move version tags to branch heads from the top bar
+Exec=git-version-tagger
+Icon=git-version-tagger
+Terminal=false
+Categories=Development;

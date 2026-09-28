@@ -1,0 +1,11 @@
+Package: git-version-tagger
+Version: @VERSION@
+Section: devel
+Priority: optional
+Architecture: @ARCH@
+Depends: git, libxcb-cursor0, gnome-shell-extension-appindicator
+Suggests: gh
+Maintainer: Vitali Shadrin <vital.shadrin2@gmail.com>
+Description: Top bar app that moves version tags (3.25-#<hash>) to a branch head
+ Replaces the tag.sh script: pick a branch and a version marker from the
+ top bar menu and the tag is moved on the remote in one atomic push.

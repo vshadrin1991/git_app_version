@@ -1,0 +1,42 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read  # the build only reads the repository; artifact upload does not use this token
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Qt runtime libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 libdbus-1-3
+      - run: pip install -e ".[dev]"
+      - run: pytest -v
+      - name: Build macOS app
+        if: runner.os == 'macOS'
+        run: packaging/macos/build.sh
+      - name: Build Ubuntu package
+        if: runner.os == 'Linux'
+        run: packaging/linux/build-deb.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: git-version-tagger-${{ matrix.os }}
+          path: |
+            dist/*.dmg
+            dist/*.deb
