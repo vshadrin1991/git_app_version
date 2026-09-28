@@ -17,23 +17,28 @@ with an atomic push.
 
 ## Use
 
-1. First launch opens **Settings**. Choose the project folder, then on **Branches** give every
-   branch its one version (mkdev → 3.26, mkdev-rc → 3.25). Type them, or use **Import branch…**
-   and **Version from remote…**.
-2. Menu → **Tag mkdev → 3.26**. The tag moves immediately, with no confirmation: the new tag is
+1. First launch opens **Settings**. Choose the project folder, then on **Branches** add one row per
+   branch and version (trunk → 3.25, trunk → alt-1.55, trunk-rc → 3.24). A branch can have several
+   versions; the same branch and version can be listed only once, and a version belongs to one branch.
+   Type them, or use **Import branch…** and **Version from remote…**.
+2. Menu → **Tag trunk → 3.26**. The tag moves immediately, with no confirmation: the new tag is
    pushed, the old `3.26-#…` tag is deleted, and the new name is copied to the clipboard.
 3. **Copy tag** copies the tag of every branch; **Show log…** shows every git command.
-4. After a release, open Settings → Branches → **Next release…**. Each checked branch moves to its
-   next version (mkdev 3.26 → 3.27, mkdev-rc 3.25 → 3.26). Click Save, then tag the branches when
+4. After a release, open Settings → Branches → **Next release…**. Each checked row moves to its
+   next version (trunk 3.26 → 3.27, trunk-rc 3.25 → 3.26). Click Save, then tag the branches when
    they are ready.
 
 Command line (same config as the app):
 
 ```
-git-version-tagger tag mkdev --dry-run
-git-version-tagger tag mkdev
+git-version-tagger tag trunk --dry-run
+git-version-tagger tag trunk
+git-version-tagger tag trunk alt-1.55
 git-version-tagger list
 ```
+
+`tag BRANCH` without a version works when the branch has one version in Settings; when it has
+several, name the one to move (`tag trunk alt-1.55`).
 
 ## GitHub login
 
@@ -70,6 +75,7 @@ a failure never leaves the remote without a tag.
 | "does not support --atomic" in the log | Harmless; the app retried with a normal push |
 | Settings file broken | The app started with defaults and kept the old file as `config.json.bak` next to `config.json` |
 | After updating, Settings asks for the version of every branch | Older settings listed versions and branches separately; pick each branch's version once. The old file is kept as `config.json.v1` |
+| An older version of the app says "Duplicate branch 'trunk'" | That version allows one row per branch. Update the app, or remove the extra trunk rows |
 
 Files: config in `~/Library/Application Support/git-version-tagger/` (macOS) or
 `~/.config/git-version-tagger/` (Ubuntu); log in `~/Library/Logs/git-version-tagger/` or
@@ -87,13 +93,13 @@ macOS (light and dark menu bar):
 - [ ] Wi-Fi off → Tag ▸ marker → error dialog, ⚠ line in the menu; after Wi-Fi on the remote still has the old tag
 - [ ] Start at login on → log out/in → app running; off → LaunchAgent plist removed
 - [ ] Log window lists the git commands
-- [ ] Branches tab: edit a version in place, a duplicate version is refused, Next release… moves the checked branches
-- [ ] Menu shows one "Tag <branch> → <version>" per branch and stays narrow with an error shown
+- [ ] Branches tab: edit a version in place; a second row trunk → alt-1.55 is accepted; the same branch + version twice and one version on two branches are refused; Next release… moves the checked rows
+- [ ] Menu shows one "Tag <branch> → <version>" per row (trunk with two versions has two items); tagging one keeps the other's tag; the menu stays narrow with an error shown
 - [ ] Settings → General → GitHub account: Log in with GitHub… shows a code, copies it, opens the device page; afterwards the status shows "Logged in to github.com as <you>" and tagging works over HTTPS
 
 Ubuntu 22.04 and 24.04, both "Ubuntu" (Wayland) and "Ubuntu on Xorg" sessions:
 - [ ] White icon in the top bar; menu opens on click
 - [ ] Every macOS item above (start at login → `~/.config/autostart/git-version-tagger.desktop`)
-- [ ] `git-version-tagger tag mkdev --dry-run` works from a terminal
-- [ ] Branches tab: edit a version in place, a duplicate version is refused, Next release… moves the checked branches
+- [ ] `git-version-tagger tag trunk --dry-run` works from a terminal
+- [ ] Branches tab: edit a version in place; a second row trunk → alt-1.55 is accepted; the same branch + version twice and one version on two branches are refused; Next release… moves the checked rows
 - [ ] Settings → General → GitHub account: Log in with GitHub… shows a code, copies it, opens the device page; afterwards the status shows "Logged in to github.com as <you>" and tagging works over HTTPS

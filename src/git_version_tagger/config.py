@@ -1,4 +1,4 @@
-"""Settings: which repository, and the one version every branch is tagged with."""
+"""Settings: which repository, and the versions every branch is tagged with."""
 from __future__ import annotations
 
 import json
@@ -21,10 +21,15 @@ _BRANCH_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
 
 @dataclass
 class BranchVersion:
-    """A branch and the one version it is tagged with (mkdev → 3.26)."""
+    """One record: a branch and a version it is tagged with (trunk → 3.25). A branch may have several."""
 
     branch: str
     marker: str = ""  # "" until chosen in Settings
+
+    @property
+    def label(self) -> str:
+        """How messages name the record: "trunk → 3.25", or "trunk (no version)"."""
+        return f"{self.branch} → {self.marker}" if self.marker else f"{self.branch} (no version)"
 
 
 @dataclass
@@ -42,12 +47,12 @@ class AppConfig:
 
     @property
     def markers(self) -> list[str]:
-        """The versions in use, in branch order; each belongs to exactly one branch."""
+        """The versions in use, in row order; each belongs to exactly one branch."""
         return [item.marker for item in self.branch_versions if item.marker]
 
-    def version_of(self, branch: str) -> str | None:
-        """The branch's version; "" when it has none yet, None when the branch is not configured."""
-        return next((item.marker for item in self.branch_versions if item.branch == branch), None)
+    def versions_of(self, branch: str) -> list[str]:
+        """The branch's versions in row order; [] when it has none yet or is not configured."""
+        return [item.marker for item in self.branch_versions if item.branch == branch and item.marker]
 
 
 def default_config_path() -> Path:
@@ -125,7 +130,7 @@ def save_config(config: AppConfig, path: Path) -> None:
 def validate_marker(value: str) -> str | None:
     """Return an error message, or None when the marker can be part of a tag name."""
     if not _MARKER_RE.fullmatch(value) or ".." in value:
-        return f"Invalid marker {value!r}: use letters, digits, '.', '_' or '-' (e.g. 3.25, scp-1.55)"
+        return f"Invalid marker {value!r}: use letters, digits, '.', '_' or '-' (e.g. 3.25, alt-1.55)"
     return None
 
 
@@ -175,9 +180,13 @@ def validate_config(config: AppConfig) -> list[str]:
             problems.append(f"Choose the version for {item.branch} in Settings")
         elif error := validate_marker(item.marker):
             problems.append(error)
-    problems += [f"Duplicate branch {branch!r}" for branch in _duplicates(config.branches)]
-    problems += [f"Version {marker!r} is set on more than one branch" for marker in _duplicates(config.markers)]
-    return problems
+    labels = [item.label for item in config.branch_versions]
+    problems += [f"{label} is listed more than once" for label in _duplicates(labels)]
+    # A version is one tag: two branches with 3.25 would delete each other's 3.25-#… tag on every tagging.
+    records = dict.fromkeys((item.branch, item.marker) for item in config.branch_versions if item.marker)
+    markers = [marker for _branch, marker in records]
+    problems += [f"Version {marker!r} is set on more than one branch" for marker in _duplicates(markers)]
+    return list(dict.fromkeys(problems))  # two rows of one branch without a version ask for it once
 
 
 def _duplicates(values: list[str]) -> list[str]:
@@ -187,7 +196,7 @@ def _duplicates(values: list[str]) -> list[str]:
 def next_version(marker: str) -> str | None:
     """The version after `marker`: its last number plus one, zero padding kept.
 
-    3.25 → 3.26, 3.9 → 3.10, scp-1.55 → scp-1.56, 3.0-react → 3.1-react, 1.09 → 1.10; None without a number.
+    3.25 → 3.26, 3.9 → 3.10, alt-1.55 → alt-1.56, 3.0-react → 3.1-react, 1.09 → 1.10; None without a number.
     """
     numbers = list(re.finditer(r"\d+", marker))
     if not numbers:

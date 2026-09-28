@@ -64,7 +64,7 @@ class TrayController(QObject):
         self.versions: dict[str, list[str]] = {}
         self.busy = False
         self.last_error: str | None = None
-        self.tag_actions: dict[str, QAction] = {}  # branch -> "Tag <branch> → <version>"
+        self.tag_actions: dict[tuple[str, str], QAction] = {}  # (branch, version) -> "Tag <branch> → <version>"
         self._submenus: list[QMenu] = []
 
         self.log_window = LogWindow()
@@ -108,7 +108,7 @@ class TrayController(QObject):
                 )
                 current = self.versions.get(item.marker) or []
                 action.setToolTip(f"Now: {', '.join(current)}" if current else f"No {item.marker} tag yet")
-                self.tag_actions[item.branch] = action
+                self.tag_actions[(item.branch, item.marker)] = action
             copy_menu = self._submenu("Copy tag")
             tags = [tag for marker in self.config.markers for tag in self.versions.get(marker) or []]
             for tag in tags:

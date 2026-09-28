@@ -20,24 +20,24 @@ def test_missing_file_gives_defaults(tmp_path):
     assert load_config(tmp_path / "missing.json") == AppConfig()
 
 
-PAIRS = [BranchVersion("mkdev", "3.26"), BranchVersion("mkdev-rc", "3.25")]
+PAIRS = [BranchVersion("trunk", "3.26"), BranchVersion("trunk-rc", "3.25")]
 
 
 def test_save_then_load_round_trips(tmp_path):
-    config = AppConfig(project_path="/Users/me/Projects/nora_automation", branch_versions=PAIRS, launch_at_login=True)
+    config = AppConfig(project_path="/Users/me/Projects/my_project", branch_versions=PAIRS, launch_at_login=True)
     path = tmp_path / "nested" / "config.json"
     save_config(config, path)
     assert load_config(path) == config
     saved = json.loads(path.read_text())
     assert saved["version"] == 2
-    assert saved["branch_versions"] == [{"branch": "mkdev", "marker": "3.26"}, {"branch": "mkdev-rc", "marker": "3.25"}]
+    assert saved["branch_versions"] == [{"branch": "trunk", "marker": "3.26"}, {"branch": "trunk-rc", "marker": "3.25"}]
     assert "markers" not in saved and "branches" not in saved
 
 
 def test_unknown_keys_are_ignored(tmp_path):
     path = tmp_path / "config.json"
-    path.write_text(json.dumps({"version": 2, "branch_versions": [{"branch": "mkdev", "marker": "3.26"}], "added_in_v3": 1}))
-    assert load_config(path) == AppConfig(branch_versions=[BranchVersion("mkdev", "3.26")])
+    path.write_text(json.dumps({"version": 2, "branch_versions": [{"branch": "trunk", "marker": "3.26"}], "added_in_v3": 1}))
+    assert load_config(path) == AppConfig(branch_versions=[BranchVersion("trunk", "3.26")])
 
 
 def test_version_1_config_keeps_branches_and_asks_for_versions(tmp_path):
@@ -48,7 +48,7 @@ def test_version_1_config_keeps_branches_and_asks_for_versions(tmp_path):
         "git_executable": "",
         "tag_template": "{marker}-#{hash}",
         "markers": ["3.24", "3.25", "3.0-react"],
-        "branches": ["mkdev", "mkdev-rc", "mkdev-react"],
+        "branches": ["trunk", "trunk-rc", "trunk-react"],
         "launch_at_login": True,
     }
     path = tmp_path / "config.json"
@@ -56,12 +56,12 @@ def test_version_1_config_keeps_branches_and_asks_for_versions(tmp_path):
     config = load_config(path)
     assert config == AppConfig(
         project_path="/p",
-        branch_versions=[BranchVersion("mkdev"), BranchVersion("mkdev-rc"), BranchVersion("mkdev-react")],
+        branch_versions=[BranchVersion("trunk"), BranchVersion("trunk-rc"), BranchVersion("trunk-react")],
         launch_at_login=True,
     )
     assert path.exists() and not (tmp_path / "config.json.bak").exists()
     assert json.loads((tmp_path / "config.json.v1").read_text()) == v1
-    assert "Choose the version for mkdev in Settings" in validate_config(config)
+    assert "Choose the version for trunk in Settings" in validate_config(config)
 
 
 @pytest.mark.parametrize(
@@ -70,9 +70,9 @@ def test_version_1_config_keeps_branches_and_asks_for_versions(tmp_path):
         "{not json",
         "[1, 2]",
         '{"branch_versions": 5}',
-        '{"branch_versions": ["mkdev"]}',
+        '{"branch_versions": ["trunk"]}',
         '{"branch_versions": [{"branch": 1}]}',
-        '{"branch_versions": [{"branch": "mkdev", "marker": 3}]}',
+        '{"branch_versions": [{"branch": "trunk", "marker": 3}]}',
         '{"branches": [1]}',
         '{"launch_at_login": "yes"}',
     ],
@@ -85,16 +85,29 @@ def test_broken_file_is_backed_up_and_defaults_are_used(tmp_path, content):
     assert not path.exists()
 
 
-def test_branches_markers_and_version_of():
-    config = AppConfig(branch_versions=[BranchVersion("mkdev", "3.26"), BranchVersion("hotfix")])
-    assert config.branches == ["mkdev", "hotfix"]
-    assert config.markers == ["3.26"]
-    assert config.version_of("mkdev") == "3.26"
-    assert config.version_of("hotfix") == ""
-    assert config.version_of("gone") is None
+def test_branches_markers_and_versions_of():
+    config = AppConfig(
+        branch_versions=[BranchVersion("trunk", "3.25"), BranchVersion("trunk", "alt-1.55"), BranchVersion("hotfix")]
+    )
+    assert config.branches == ["trunk", "trunk", "hotfix"]
+    assert config.markers == ["3.25", "alt-1.55"]
+    assert config.versions_of("trunk") == ["3.25", "alt-1.55"]
+    assert config.versions_of("hotfix") == []
+    assert config.versions_of("gone") == []
 
 
-@pytest.mark.parametrize("marker", ["3.25", "3.24", "scp-1.55", "v10", "release_2"])
+def test_label_names_the_record():
+    assert BranchVersion("trunk", "alt-1.55").label == "trunk → alt-1.55"
+    assert BranchVersion("trunk").label == "trunk (no version)"
+
+
+def test_label_is_not_saved(tmp_path):
+    path = tmp_path / "config.json"
+    save_config(AppConfig(branch_versions=[BranchVersion("trunk", "3.25")]), path)
+    assert json.loads(path.read_text())["branch_versions"] == [{"branch": "trunk", "marker": "3.25"}]
+
+
+@pytest.mark.parametrize("marker", ["3.25", "3.24", "alt-1.55", "v10", "release_2"])
 def test_valid_markers(marker):
     assert validate_marker(marker) is None
 
@@ -104,7 +117,7 @@ def test_invalid_markers(marker):
     assert validate_marker(marker) is not None
 
 
-@pytest.mark.parametrize("branch", ["mkdev", "mkdev-rc", "release/3.25", "feature_x"])
+@pytest.mark.parametrize("branch", ["trunk", "trunk-rc", "release/3.25", "feature_x"])
 def test_valid_branches(branch):
     assert validate_branch(branch) is None
 
@@ -129,23 +142,43 @@ def test_validate_config_reports_everything_missing():
 def test_validate_config_flags_duplicates_and_bad_template():
     config = AppConfig(
         project_path="/p",
-        branch_versions=[BranchVersion("mkdev", "3.25"), BranchVersion("mkdev", "3.24"), BranchVersion("mkdev-rc", "3.25")],
+        branch_versions=[
+            BranchVersion("trunk", "3.25"),
+            BranchVersion("trunk", "3.25"),
+            BranchVersion("trunk-rc", "3.24"),
+            BranchVersion("hotfix", "3.24"),
+        ],
         tag_template="{marker}",
     )
     assert validate_config(config) == [
         "Tag template must contain {marker} and {hash}",
-        "Duplicate branch 'mkdev'",
-        "Version '3.25' is set on more than one branch",
+        "trunk → 3.25 is listed more than once",
+        "Version '3.24' is set on more than one branch",
+    ]
+
+
+def test_one_branch_may_have_several_versions():
+    config = AppConfig(
+        project_path="/p", branch_versions=[BranchVersion("trunk", "3.25"), BranchVersion("trunk", "alt-1.55")]
+    )
+    assert validate_config(config) == []
+
+
+def test_same_branch_twice_without_a_version_is_one_problem():
+    config = AppConfig(project_path="/p", branch_versions=[BranchVersion("trunk"), BranchVersion("trunk")])
+    assert validate_config(config) == [
+        "Choose the version for trunk in Settings",
+        "trunk (no version) is listed more than once",
     ]
 
 
 def test_branch_without_version_is_a_problem():
-    config = AppConfig(project_path="/p", branch_versions=[BranchVersion("mkdev")])
-    assert validate_config(config) == ["Choose the version for mkdev in Settings"]
+    config = AppConfig(project_path="/p", branch_versions=[BranchVersion("trunk")])
+    assert validate_config(config) == ["Choose the version for trunk in Settings"]
 
 
 def test_valid_config_has_no_problems():
-    assert validate_config(AppConfig(project_path="/p", branch_versions=[BranchVersion("mkdev", "3.25")])) == []
+    assert validate_config(AppConfig(project_path="/p", branch_versions=[BranchVersion("trunk", "3.25")])) == []
 
 
 @pytest.mark.parametrize(
@@ -153,7 +186,7 @@ def test_valid_config_has_no_problems():
     [
         ("3.25", "3.26"),
         ("3.9", "3.10"),
-        ("scp-1.55", "scp-1.56"),
+        ("alt-1.55", "alt-1.56"),
         ("3.0-react", "3.1-react"),
         ("1.09", "1.10"),
         ("v10", "v11"),

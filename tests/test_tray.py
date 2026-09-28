@@ -36,7 +36,7 @@ def test_menu_has_one_tag_item_per_branch(make_controller, config):
     controller = make_controller(config)
     items = texts(controller.menu)
     assert items[0] == config.project_path.rsplit("/", 1)[-1]
-    assert "Tag mkdev → 3.25" in items and "Tag mkdev-rc → 3.24" in items
+    assert "Tag trunk → 3.25" in items and "Tag trunk-rc → 3.24" in items
     assert "Copy tag" in items and "Current versions" not in items
 
 
@@ -48,13 +48,28 @@ def test_unconfigured_app_points_to_settings(make_controller):
 
 def test_clicking_a_branch_moves_its_version_tag_immediately(make_controller, config, repos, qtbot):
     controller = make_controller(config)
-    controller.tag_actions["mkdev"].trigger()
+    controller.tag_actions[("trunk", "3.25")].trigger()
     qtbot.waitUntil(lambda: bool(controller.versions.get("3.25")) and not controller.busy, timeout=15000)
     [tag] = repos.remote_tags()
     assert QGuiApplication.clipboard().text() == tag
-    assert controller.tag_actions["mkdev"].toolTip() == f"Now: {tag}"
+    assert controller.tag_actions[("trunk", "3.25")].toolTip() == f"Now: {tag}"
     copy_menu = next(a.menu() for a in controller.menu.actions() if a.text() == "Copy tag")
     assert texts(copy_menu) == [tag]
+
+
+def test_a_branch_with_two_versions_gets_two_items_and_keeps_both_tags(make_controller, config, repos, qtbot):
+    config.branch_versions.append(BranchVersion("trunk", "alt-1.55"))
+    controller = make_controller(config)
+    items = texts(controller.menu)
+    assert "Tag trunk → 3.25" in items and "Tag trunk → alt-1.55" in items
+    controller.tag_actions[("trunk", "3.25")].trigger()
+    qtbot.waitUntil(lambda: bool(controller.versions.get("3.25")) and not controller.busy, timeout=15000)
+    controller.tag_actions[("trunk", "alt-1.55")].trigger()
+    qtbot.waitUntil(lambda: bool(controller.versions.get("alt-1.55")) and not controller.busy, timeout=15000)
+    tags = repos.remote_tags()
+    assert [tag.split("-#")[0] for tag in tags] == ["3.25", "alt-1.55"]  # tagging alt-1.55 kept 3.25
+    assert controller.tag_actions[("trunk", "3.25")].toolTip() == f"Now: {tags[0]}"
+    assert controller.tag_actions[("trunk", "alt-1.55")].toolTip() == f"Now: {tags[1]}"
 
 
 def test_failed_tagging_reports_error_and_unlocks_menu(make_controller, config, monkeypatch, qtbot):
@@ -62,10 +77,10 @@ def test_failed_tagging_reports_error_and_unlocks_menu(make_controller, config, 
     monkeypatch.setattr(tray_module, "show_error", errors.append)
     config.branch_versions.append(BranchVersion("gone", "3.23"))
     controller = make_controller(config)
-    controller.tag_actions["gone"].trigger()
+    controller.tag_actions[("gone", "3.23")].trigger()
     qtbot.waitUntil(lambda: bool(errors) and not controller.busy, timeout=15000)
     assert "'gone' not found on remote 'origin'" in errors[0]
-    assert controller.tag_actions["mkdev"].isEnabled()
+    assert controller.tag_actions[("trunk", "3.25")].isEnabled()
 
 
 def test_auth_failure_points_to_the_github_login(make_controller, config, monkeypatch, qtbot):
@@ -77,7 +92,7 @@ def test_auth_failure_points_to_the_github_login(make_controller, config, monkey
 
     monkeypatch.setattr(tray_module, "move_tag", fail)
     controller = make_controller(config)
-    controller.tag_actions["mkdev"].trigger()
+    controller.tag_actions[("trunk", "3.25")].trigger()
     qtbot.waitUntil(lambda: bool(errors), timeout=15000)
     assert errors[0].endswith(LOGIN_HINT)
 
@@ -95,7 +110,7 @@ GIT_ERROR = (
         ("git push --atomic origin x failed: fatal: Authentication failed for 'https://github.com/acme/app.git/'",
          "Authentication failed for 'https://github.com/a…"),
         ("Branch 'gone' not found on remote 'origin'", "Branch 'gone' not found on remote 'origin'"),
-        ("Choose the version for mkdev-react in Settings", "Choose the version for mkdev-react in Settings"),
+        ("Choose the version for trunk-react in Settings", "Choose the version for trunk-react in Settings"),
         ("", "Unknown error"),
     ],
 )
@@ -114,7 +129,7 @@ def test_long_errors_are_shortened_in_the_menu(make_controller, config):
 
 
 def test_menu_items_stay_short(make_controller, config):
-    config.branch_versions.append(BranchVersion("mkdev-react", "3.0-react"))
+    config.branch_versions.append(BranchVersion("trunk-react", "3.0-react"))
     controller = make_controller(config)
     controller.last_error = "git fetch failed: " + "x" * 300
     controller.rebuild_menu()

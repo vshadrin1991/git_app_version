@@ -1,4 +1,4 @@
-"""Command line: `git-version-tagger tag mkdev 3.25` does what `tag.sh mkdev 3.25` did."""
+"""Command line: `git-version-tagger tag trunk 3.25` does what `tag.sh trunk 3.25` did."""
 from __future__ import annotations
 
 import argparse
@@ -23,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("gui", help="start the menu bar app (the default)")
     tag = sub.add_parser("tag", help="move BRANCH's version tag to the head of BRANCH")
     tag.add_argument("branch")
-    tag.add_argument("marker", nargs="?", help="the version; defaults to the branch's version in Settings")
+    tag.add_argument("marker", nargs="?", help="the version; may be left out when the branch has one version in Settings")
     tag.add_argument("--dry-run", action="store_true", help="show what would change and stop")
     sub.add_parser("list", help="print every branch with its version and current tag")
     return parser
@@ -54,8 +54,15 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _tag(config: AppConfig, args: argparse.Namespace) -> int:
-    configured = config.version_of(args.branch)
-    marker = args.marker or configured
+    configured = config.versions_of(args.branch)
+    if not args.marker and len(configured) > 1:
+        print(
+            f"error: {args.branch} has versions {', '.join(configured)} in Settings; "
+            f"give one: tag {args.branch} {configured[0]}",
+            file=sys.stderr,
+        )
+        return 2
+    marker = args.marker or next(iter(configured), "")
     if not marker:
         print(f"error: {args.branch} has no version in Settings; give one: tag {args.branch} 3.26", file=sys.stderr)
         return 2
@@ -63,9 +70,9 @@ def _tag(config: AppConfig, args: argparse.Namespace) -> int:
         if problem:
             print(f"error: {problem}", file=sys.stderr)
             return 2
-    if configured and marker != configured:
+    if configured and marker not in configured:
         print(
-            f"error: {args.branch} is tagged with {configured} (Settings); change it there to tag {marker}",
+            f"error: {args.branch} is tagged with {', '.join(configured)} (Settings); change it there to tag {marker}",
             file=sys.stderr,
         )
         return 2

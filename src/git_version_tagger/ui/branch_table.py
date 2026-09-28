@@ -1,4 +1,4 @@
-"""Settings → Branches: every branch and the one version it is tagged with (mkdev → 3.26)."""
+"""Settings → Branches: one row per branch and version (trunk → 3.25, trunk → alt-1.55)."""
 from __future__ import annotations
 
 from typing import Callable
@@ -34,7 +34,7 @@ class BranchTable(QWidget):
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True)
         self.table.itemChanged.connect(self._on_item_changed)
-        self.branch_input = line_edit(placeholder="Branch, e.g. mkdev")
+        self.branch_input = line_edit(placeholder="Branch, e.g. trunk")
         self.version_input = line_edit(placeholder="Version, e.g. 3.26")
         for field in (self.branch_input, self.version_input):
             field.returnPressed.connect(self._add_from_inputs)
@@ -89,13 +89,13 @@ class BranchTable(QWidget):
     def versions(self) -> list[str]:
         return [item.marker for item in self.values() if item.marker]
 
-    def selected_branch(self) -> str | None:
+    def selected(self) -> BranchVersion | None:
         row = self.table.currentRow()
-        return self._text(row, BRANCH) if row >= 0 else None
+        return self.values()[row] if row >= 0 else None
 
     def add(self, branch: str, marker: str = "") -> bool:
         branch, marker = branch.strip(), marker.strip()
-        error = self._check(BRANCH, branch) or self._check(VERSION, marker)
+        error = self._check(branch, marker)
         self.error_label.setText(error or "")
         if error:
             return False
@@ -107,12 +107,13 @@ class BranchTable(QWidget):
         self.table.selectRow(self.table.rowCount() - 1)
         return True
 
-    def set_version(self, branch: str, marker: str) -> bool:
-        """Set the version of `branch`, found by name because rows may have moved since the caller looked.
+    def set_version(self, current: BranchVersion, marker: str) -> bool:
+        """Set the version of the row holding `current`, found by branch and version because rows may have
+        moved or changed since the caller looked.
 
-        False when the branch is gone or the version is invalid or taken (the error label says why).
+        False when that row is gone or the version is invalid or taken (the error label says why).
         """
-        row = next((r for r in range(self.table.rowCount()) if self._text(r, BRANCH) == branch), None)
+        row = next((r for r, value in enumerate(self.values()) if value == current), None)
         if row is None:
             return False
         self.table.item(row, VERSION).setText(marker)  # checked by _on_item_changed
@@ -131,31 +132,35 @@ class BranchTable(QWidget):
         item = self.table.item(row, column)
         return item.text().strip() if item else ""
 
-    def _check(self, column: int, text: str, row: int = -1) -> str | None:
-        """Why `text` may not stand in `column` (ignoring `row` itself), or None."""
-        owner = next((r for r in range(self.table.rowCount()) if r != row and self._text(r, column) == text), None)
-        if column == BRANCH:
-            if error := validate_branch(text):
-                return error
-            return f"Branch {text!r} is already in the list" if owner is not None else None
-        if not text:
-            return None  # a branch may wait for its version; Save asks for it
-        if error := validate_marker(text):
+    def _check(self, branch: str, marker: str, row: int = -1) -> str | None:
+        """Why the record `branch` → `marker` may not stand in the table (ignoring `row` itself), or None.
+
+        A branch may have several rows; the same branch and version may not repeat, and a version belongs
+        to one branch. An empty version is allowed: a branch may wait for it, Save asks for it.
+        """
+        if error := validate_branch(branch):
             return error
-        return f"{text} is already the version of {self._text(owner, BRANCH)}" if owner is not None else None
+        if marker and (error := validate_marker(marker)):
+            return error
+        others = [value for r, value in enumerate(self.values()) if r != row]
+        record = BranchVersion(branch, marker)
+        if record in others:
+            return f"{record.label} is already in the list"
+        owner = next((value.branch for value in others if marker and value.marker == marker), None)
+        return f"{marker} is already the version of {owner}" if owner is not None else None
 
     def _on_item_changed(self, item: QTableWidgetItem) -> None:
         if self._updating:
             return
-        text = item.text().strip()
-        error = self._check(item.column(), text, item.row())
+        row = item.row()
+        error = self._check(self._text(row, BRANCH), self._text(row, VERSION), row)  # the row with the edit
         self._updating = True
         try:
             if error:
                 item.setText(item.data(_LAST_GOOD))
             else:
-                item.setText(text)
-                item.setData(_LAST_GOOD, text)
+                item.setText(item.text().strip())
+                item.setData(_LAST_GOOD, item.text())
         finally:
             self._updating = False
         self.error_label.setText(error or "")

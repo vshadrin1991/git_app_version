@@ -1,4 +1,4 @@
-"""Next release: move the checked branches to the version after their current one (mkdev 3.26 → 3.27)."""
+"""Next release: move the checked branches to the version after their current one (trunk 3.26 → 3.27)."""
 from __future__ import annotations
 
 from PySide6.QtWidgets import QCheckBox, QDialog, QDialogButtonBox, QLabel, QVBoxLayout, QWidget
@@ -15,7 +15,7 @@ class NextReleaseDialog(QDialog):
         self.checks: list[QCheckBox] = []
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
-        layout.addWidget(QLabel("Move these branches to their next version:"))
+        layout.addWidget(QLabel("Move these versions to the next one:"))
         for item in self._values:
             new = next_version(item.marker) if item.marker else None
             if not item.marker:
@@ -52,11 +52,13 @@ class NextReleaseDialog(QDialog):
         for item in self.result_values():
             if item.marker:
                 owners.setdefault(item.marker, []).append(item.branch)
-        clashes = [
-            f"{marker} would be the version of {' and '.join(branches)}"
-            for marker, branches in owners.items()
-            if len(branches) > 1
-        ]
+        clashes = []
+        for marker, branches in owners.items():
+            distinct = list(dict.fromkeys(branches))
+            if len(distinct) > 1:
+                clashes.append(f"{marker} would be the version of {' and '.join(distinct)}")
+            elif len(branches) > 1:
+                clashes.append(f"{BranchVersion(branches[0], marker).label} would be listed twice")
         self.error.setText("\n".join(clashes))
         ok = self.buttons.button(QDialogButtonBox.StandardButton.Ok)
         ok.setEnabled(not clashes and any(check.isChecked() for check in self.checks))

@@ -24,7 +24,7 @@ def isolated_git_env(tmp_path_factory, monkeypatch):
 
 @pytest.fixture
 def repos(tmp_path) -> Repos:
-    """origin.git has branches main, mkdev and mkdev-rc; project/ and other/ are clones of it."""
+    """origin.git has branches main, trunk and trunk-rc; project/ and other/ are clones of it."""
     origin = tmp_path / "origin.git"
     git(tmp_path, "init", "--bare", "-b", "main", str(origin))
     seed = tmp_path / "seed"
@@ -33,7 +33,7 @@ def repos(tmp_path) -> Repos:
     git(seed, "add", "file.txt")
     git(seed, "commit", "-m", "initial")
     git(seed, "push", "origin", "main")
-    for branch in ("mkdev", "mkdev-rc"):
+    for branch in ("trunk", "trunk-rc"):
         git(seed, "push", "origin", f"main:refs/heads/{branch}")
     project = tmp_path / "project"
     git(tmp_path, "clone", str(origin), str(project))
@@ -46,7 +46,7 @@ def repos(tmp_path) -> Repos:
 def config(repos) -> AppConfig:
     return AppConfig(
         project_path=str(repos.project),
-        branch_versions=[BranchVersion("mkdev", "3.25"), BranchVersion("mkdev-rc", "3.24")],
+        branch_versions=[BranchVersion("trunk", "3.25"), BranchVersion("trunk-rc", "3.24")],
     )
 
 

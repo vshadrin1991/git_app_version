@@ -1,4 +1,4 @@
-"""Settings: project, remote, tag format, GitHub login, and the one version of every branch."""
+"""Settings: project, remote, tag format, GitHub login, and the versions of every branch."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..config import AppConfig, validate_config, validate_template
+from ..config import AppConfig, BranchVersion, validate_config, validate_template
 from ..git_runner import GitError, find_git
 from ..github_auth import explain_error
 from ..tagger import Tagger, TaggerError, make_tagger, tag_name
@@ -30,8 +30,8 @@ from .style import MARGINS, SPACING, column, form_layout, line_edit, row, second
 from .worker import run_in_background
 
 BRANCHES_HELP = (
-    "Each branch is tagged with its own version. After a release, click Next release… "
-    "to move the branches to their next versions (mkdev 3.26 → 3.27)."
+    "One row per version: a branch can have several (trunk → 3.25, trunk → alt-1.55), a version belongs to "
+    "one branch. After a release, click Next release… to move the versions on (trunk 3.26 → 3.27)."
 )
 
 
@@ -67,7 +67,7 @@ class SettingsDialog(QDialog):
         self.branch_table = BranchTable()
         self.branch_table.set_values(config.branch_versions)
         self.import_branch_button = self._button("Import branch…", self._import_branch)
-        self.import_branch_button.setToolTip("Add a branch that exists on the remote")
+        self.import_branch_button.setToolTip("Add a row for a branch on the remote (again, for another version)")
         self.version_from_remote_button = self._button("Version from remote…", self._version_from_remote)
         self.version_from_remote_button.setToolTip("Set the selected branch's version from the remote's tags")
         self.branch_actions = QHBoxLayout()
@@ -152,25 +152,26 @@ class SettingsDialog(QDialog):
         self._load_from_remote(self.import_branch_button, Tagger.remote_branches, self._on_branches_loaded)
 
     def _on_branches_loaded(self, branches: list[str]) -> None:
-        branch = self._pick("branch", "branches", branches, self.branch_table.branches())
+        waiting = [item.branch for item in self.branch_table.values() if not item.marker]  # one such row per branch
+        branch = self._pick("branch", "branches", branches, waiting)
         if branch:
             self.branch_table.add(branch)  # without a version: the user picks it next
 
     def _version_from_remote(self) -> None:
-        branch = self.branch_table.selected_branch()
-        if branch is None:
+        selected = self.branch_table.selected()
+        if selected is None:
             messages.information(self, "Version from remote", "Select a branch first.")
             return
         self._load_from_remote(
             self.version_from_remote_button,
             Tagger.remote_markers,
-            lambda markers: self._on_versions_loaded(branch, markers),
+            lambda markers: self._on_versions_loaded(selected, markers),
         )
 
-    def _on_versions_loaded(self, branch: str, markers: list[str]) -> None:
+    def _on_versions_loaded(self, selected: BranchVersion, markers: list[str]) -> None:
         marker = self._pick("version", "versions", markers, self.branch_table.versions())
         if marker:
-            self.branch_table.set_version(branch, marker)  # by name: rows may have changed meanwhile
+            self.branch_table.set_version(selected, marker)  # by branch and version: rows may have changed meanwhile
 
     def _load_from_remote(
         self, button: QPushButton, load: Callable[[Tagger], list[str]], on_loaded: Callable[[list[str]], None]

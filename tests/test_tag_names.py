@@ -5,7 +5,7 @@ TEMPLATE = "{marker}-#{hash}"
 
 def make_plan(**overrides) -> TagPlan:
     values = dict(
-        branch="mkdev",
+        branch="trunk",
         marker="3.25",
         commit="a1b2c3d" + "0" * 33,
         short_hash="a1b2c3d",
@@ -20,14 +20,14 @@ def make_plan(**overrides) -> TagPlan:
 
 def test_tag_name_uses_template():
     assert tag_name(TEMPLATE, "3.25", "a1b2c3d") == "3.25-#a1b2c3d"
-    assert tag_name(TEMPLATE, "scp-1.55", "abcdef1") == "scp-1.55-#abcdef1"
+    assert tag_name(TEMPLATE, "alt-1.55", "abcdef1") == "alt-1.55-#abcdef1"
 
 
 def test_find_marker_tags_matches_only_exact_marker():
     tags = [
         "3.25-#a1b2c3d",
         "3.2-#0000fff",
-        "scp-1.55-#abcdef1",
+        "alt-1.55-#abcdef1",
         "1.55-#1234567",
         "3.25-rc",
         "v3.25-#a1b2c3d",
@@ -36,7 +36,7 @@ def test_find_marker_tags_matches_only_exact_marker():
     assert find_marker_tags(tags, TEMPLATE, "3.25") == ["3.25-#a1b2c3d"]
     assert find_marker_tags(tags, TEMPLATE, "3.2") == ["3.2-#0000fff"]
     assert find_marker_tags(tags, TEMPLATE, "1.55") == ["1.55-#1234567"]
-    assert find_marker_tags(tags, TEMPLATE, "scp-1.55") == ["scp-1.55-#abcdef1"]
+    assert find_marker_tags(tags, TEMPLATE, "alt-1.55") == ["alt-1.55-#abcdef1"]
 
 
 def test_dot_in_marker_is_not_a_wildcard():
@@ -53,7 +53,7 @@ def test_find_marker_tags_returns_sorted_duplicates():
 
 def test_describe_lists_what_will_happen():
     text = make_plan().describe()
-    assert "mkdev is at a1b2c3d: Fix login" in text
+    assert "trunk is at a1b2c3d: Fix login" in text
     assert "delete 3.25-#0000fff" in text
     assert "create 3.25-#a1b2c3d" in text
 
@@ -66,8 +66,8 @@ def test_up_to_date_only_when_tagged_and_nothing_to_delete():
 
 
 def test_markers_in_tags_extracts_markers_highest_version_first():
-    tags = ["3.24-#a1b2c3d", "3.25-#1234567", "3.9-#abcdef0", "scp-1.55-#0badf00d", "v1.0", "3.0-react-#abc1234"]
-    assert markers_in_tags(tags, TEMPLATE) == ["scp-1.55", "3.25", "3.24", "3.9", "3.0-react"]
+    tags = ["3.24-#a1b2c3d", "3.25-#1234567", "3.9-#abcdef0", "alt-1.55-#0badf00d", "v1.0", "3.0-react-#abc1234"]
+    assert markers_in_tags(tags, TEMPLATE) == ["alt-1.55", "3.25", "3.24", "3.9", "3.0-react"]
 
 
 def test_markers_in_tags_deduplicates_and_skips_tags_in_other_formats():
@@ -90,4 +90,4 @@ def test_printable_replaces_terminal_controls_and_bidi_overrides():
     assert printable("line\rover") == "line?over"
     assert printable("a\nb") == "a?b"
     assert printable("a\nb", keep_newlines=True) == "a\nb"
-    assert printable("Релиз 3.26 ✓ → mkdev") == "Релиз 3.26 ✓ → mkdev"
+    assert printable("Релиз 3.26 ✓ → trunk") == "Релиз 3.26 ✓ → trunk"

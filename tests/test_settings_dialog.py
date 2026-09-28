@@ -56,9 +56,9 @@ def test_save_rejects_folder_that_is_not_a_repository(qtbot, config, tmp_path, w
 
 
 def test_save_rejects_a_branch_without_version(qtbot, config, warnings):
-    config.branch_versions = [BranchVersion("mkdev")]
+    config.branch_versions = [BranchVersion("trunk")]
     assert not accepted_after_save(make_dialog(qtbot, config))
-    assert "Choose the version for mkdev in Settings" in warnings[0]
+    assert "Choose the version for trunk in Settings" in warnings[0]
 
 
 def test_template_preview(qtbot, config):
@@ -133,8 +133,21 @@ def test_import_branch_adds_it_without_a_version(qtbot, config, monkeypatch):
     dialog = make_dialog(qtbot, config)
     dialog.import_branch_button.click()
     qtbot.waitUntil(lambda: "main" in dialog.branch_table.branches(), timeout=15000)
-    assert offered == [["main"]]
+    assert offered == [["main", "trunk", "trunk-rc"]]  # trunk and trunk-rc may get another version
     assert dialog.branch_table.values()[-1] == BranchVersion("main", "")
+
+
+def test_import_branch_offers_branches_that_already_have_a_version(qtbot, config, monkeypatch):
+    offered, infos = [], []
+    monkeypatch.setattr(QInputDialog, "getItem", pick_first(offered))
+    monkeypatch.setattr(messages, "information", lambda parent, title, text: infos.append(text))  # never block
+    config.branch_versions.append(BranchVersion("main"))  # waits for its version: not offered again
+    dialog = make_dialog(qtbot, config)
+    dialog.import_branch_button.click()
+    qtbot.waitUntil(lambda: len(dialog.branch_table.values()) == 4, timeout=15000)
+    assert offered == [["trunk", "trunk-rc"]]
+    assert infos == []
+    assert dialog.branch_table.values()[-1] == BranchVersion("trunk", "")
 
 
 def select_branch(dialog, row: int) -> None:
@@ -146,12 +159,27 @@ def test_version_from_remote_sets_the_selected_branch(qtbot, config, repos, monk
     offered = []
     monkeypatch.setattr(QInputDialog, "getItem", pick_first(offered))
     dialog = make_dialog(qtbot, config)
-    select_branch(dialog, 0)  # mkdev → 3.25
+    select_branch(dialog, 0)  # trunk → 3.25
     dialog.version_from_remote_button.click()
     qtbot.waitUntil(lambda: dialog.branch_table.values()[0].marker == "3.26", timeout=15000)
     assert offered == [["3.26"]]  # 3.25 and 3.24 already belong to branches
     assert dialog.version_from_remote_button.text() == "Version from remote…"
     assert dialog.version_from_remote_button.isEnabled()
+
+
+def test_version_from_remote_sets_the_selected_row_of_a_branch_with_several(qtbot, config, repos, monkeypatch):
+    push_tags(repos, "alt-1.55-#abcdef1")
+    config.branch_versions.append(BranchVersion("trunk"))  # trunk → 3.25 is row 0
+    monkeypatch.setattr(QInputDialog, "getItem", pick_first([]))
+    dialog = make_dialog(qtbot, config)
+    select_branch(dialog, 2)  # the second trunk row, still without a version
+    dialog.version_from_remote_button.click()
+    qtbot.waitUntil(lambda: dialog.branch_table.values()[2].marker == "alt-1.55", timeout=15000)
+    assert dialog.branch_table.values() == [
+        BranchVersion("trunk", "3.25"),
+        BranchVersion("trunk-rc", "3.24"),
+        BranchVersion("trunk", "alt-1.55"),
+    ]
 
 
 def test_version_from_remote_uses_the_tag_format_being_edited(qtbot, config, repos, monkeypatch):
@@ -198,16 +226,16 @@ def test_version_for_a_branch_removed_meanwhile_is_dropped(qtbot, config, repos,
     push_tags(repos, "3.26-#abcdef1")
     dialog = make_dialog(qtbot, config)
 
-    def remove_mkdev_then_pick(parent, title, label, items, current=0, editable=True):
+    def remove_trunk_then_pick(parent, title, label, items, current=0, editable=True):
         select_branch(dialog, 0)
-        dialog.branch_table.remove_button.click()  # the user removed mkdev before the answer arrived
+        dialog.branch_table.remove_button.click()  # the user removed trunk before the answer arrived
         return items[0], True
 
-    monkeypatch.setattr(QInputDialog, "getItem", remove_mkdev_then_pick)
+    monkeypatch.setattr(QInputDialog, "getItem", remove_trunk_then_pick)
     select_branch(dialog, 0)
     dialog.version_from_remote_button.click()
     qtbot.waitUntil(dialog.version_from_remote_button.isEnabled, timeout=15000)
-    assert dialog.branch_table.values() == [BranchVersion("mkdev-rc", "3.24")]
+    assert dialog.branch_table.values() == [BranchVersion("trunk-rc", "3.24")]
 
 
 def test_remote_credential_failure_points_to_the_github_login(qtbot, config, warnings, monkeypatch):
@@ -226,7 +254,7 @@ def test_next_release_moves_the_versions_in_the_table(qtbot, config, monkeypatch
     monkeypatch.setattr(NextReleaseDialog, "exec", lambda self: 1)
     dialog = make_dialog(qtbot, config)
     dialog.next_release_button.click()
-    assert dialog.branch_table.values() == [BranchVersion("mkdev", "3.26"), BranchVersion("mkdev-rc", "3.25")]
+    assert dialog.branch_table.values() == [BranchVersion("trunk", "3.26"), BranchVersion("trunk-rc", "3.25")]
 
 
 def test_cancelled_next_release_changes_nothing(qtbot, config, monkeypatch):
