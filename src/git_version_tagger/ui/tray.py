@@ -16,7 +16,7 @@ from ..github_auth import explain_error
 from ..platform_support import bring_to_front, set_autostart
 from ..tagger import TagPlan, make_tagger
 from . import messages
-from .icons import tray_icon
+from .icons import app_icon, tray_icon
 from .log_window import LogWindow, QtLogHandler
 from .settings_dialog import SettingsDialog
 from .worker import run_in_background
@@ -211,9 +211,10 @@ class TrayController(QObject):
     def notify(self, title: str, message: str, error: bool = False) -> None:
         log.info("%s: %s", title, message)
         if QSystemTrayIcon.supportsMessages():
-            icon = QSystemTrayIcon.MessageIcon.Critical if error else QSystemTrayIcon.MessageIcon.Information
+            icon = QSystemTrayIcon.MessageIcon.Critical if error else app_icon()
             self.tray.showMessage(messages.no_markup(title), messages.no_markup(message), icon, 8000)
 
     def _set_busy(self, busy: bool) -> None:
         self.busy = busy
+        self.tray.setIcon(tray_icon(busy))
         self.rebuild_menu()

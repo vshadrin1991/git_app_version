@@ -1,6 +1,6 @@
 import pytest
 from PySide6.QtGui import Qt as GuiQt
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QIcon
 
 from git_version_tagger.config import AppConfig, BranchVersion, save_config
 from git_version_tagger.git_runner import GitError
@@ -156,3 +156,23 @@ def test_notifications_carry_no_markup(make_controller, config, monkeypatch):
     monkeypatch.setattr(controller.tray, "showMessage", lambda title, message, *rest: shown.append((title, message)))
     controller.notify("Could not refresh tags", "remote: <a href='x'>y</a>", error=True)
     assert shown == [("Could not refresh tags", "remote: ‹a href='x'›y‹/a›")]
+
+
+def test_tag_notification_uses_app_icon(make_controller, config, monkeypatch):
+    icons = []
+    controller = make_controller(config)
+    monkeypatch.setattr(tray_module.QSystemTrayIcon, "supportsMessages", lambda: True)
+    monkeypatch.setattr(controller.tray, "showMessage", lambda title, message, icon, *rest: icons.append(icon))
+    controller.notify("Version tag moved", "v1 was pushed")
+    controller.notify("Could not refresh tags", "boom", error=True)
+    assert isinstance(icons[0], QIcon) and not icons[0].isNull()
+    assert icons[1] == tray_module.QSystemTrayIcon.MessageIcon.Critical
+
+
+def test_tray_icon_shows_dots_while_busy(make_controller, config, monkeypatch):
+    icons = []
+    controller = make_controller(config)
+    monkeypatch.setattr(tray_module, "tray_icon", lambda busy=False: icons.append(busy) or QIcon())
+    controller._set_busy(True)
+    controller._set_busy(False)
+    assert icons == [True, False]

@@ -6,14 +6,75 @@ with an atomic push.
 
 ## Install
 
-- **macOS:** open `GitVersionTagger-<version>-macos-<arch>.dmg`, drag the app to Applications.
-  The build is not notarized, so macOS blocks the first launch: open System Settings →
-  Privacy & Security and click **Open Anyway** next to the GitVersionTagger message. This allows
-  only this app; do not remove the quarantine flag with `xattr`, which skips the check entirely.
-- **Ubuntu 22.04/24.04:** `sudo apt install ./git-version-tagger_<version>_amd64.deb`, then start
-  "Git Version Tagger" from the app grid. The icon needs the "Ubuntu AppIndicators" GNOME
-  extension (enabled by default on Ubuntu).
-- **From source:** `python3 -m venv .venv && . .venv/bin/activate && pip install -e ".[dev]" && python -m git_version_tagger`
+### Get the package
+
+The installers are built by GitHub Actions on every push to `main`:
+
+1. Open the repository's **Actions** tab → **build** workflow → the latest green run.
+2. Under **Artifacts**, download `git-version-tagger-macos-14` (macOS) or
+   `git-version-tagger-ubuntu-22.04` (Ubuntu). You must be logged in to GitHub to download.
+3. Unzip it. Inside is `GitVersionTagger-<version>-macos-arm64.dmg` or
+   `git-version-tagger_<version>_amd64.deb`.
+
+Or build it yourself, see [Build from source](#build-from-source).
+
+### macOS (Apple silicon)
+
+1. Open the `.dmg` and drag **GitVersionTagger** to **Applications**.
+2. Start it from Applications. The app is not notarized, so macOS refuses the first launch.
+   Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to the
+   GitVersionTagger message, then confirm. This is needed once. Do not remove the quarantine flag
+   with `xattr`: that skips the check for the whole app instead of approving it.
+3. The icon appears in the menu bar (there is no Dock icon). Settings opens on the first launch.
+4. git must be installed: run `xcode-select --install` if `git --version` in Terminal asks for it.
+
+To update, quit the app from its menu and replace it in Applications. Settings are kept.
+To uninstall, quit it, delete it from Applications and, if you want, remove
+`~/Library/Application Support/git-version-tagger/`.
+
+### Ubuntu 22.04 / 24.04 (amd64)
+
+1. Install the package (apt pulls in `git` and the AppIndicator extension):
+
+   ```bash
+   sudo apt install ./git-version-tagger_<version>_amd64.deb
+   ```
+
+2. Start **Git Version Tagger** from the app grid, or run `git-version-tagger` in a terminal.
+3. If no icon appears in the top bar, enable the extension and log out and back in:
+
+   ```bash
+   gnome-extensions enable ubuntu-appindicators@ubuntu.com
+   ```
+
+To update, install the new `.deb` the same way. To uninstall: `sudo apt remove git-version-tagger`.
+
+The `git-version-tagger` command (see [Use](#use)) is installed into `/usr/bin` with the package.
+On macOS the app binary takes the same arguments; add an alias to `~/.zshrc` to use it:
+
+```bash
+alias git-version-tagger=/Applications/GitVersionTagger.app/Contents/MacOS/GitVersionTagger
+```
+
+### Build from source
+
+Needs Python 3.10+ and git.
+
+```bash
+git clone https://github.com/vshadrin1991/git_app_version.git
+cd git_app_version
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -e ".[dev]"
+python -m git_version_tagger      # run the app
+pytest                            # run the tests
+```
+
+To build the installers:
+
+- macOS: `packaging/macos/build.sh` → `dist/GitVersionTagger-<version>-macos-<arch>.dmg`
+- Ubuntu: `packaging/linux/build-deb.sh` on Ubuntu, or `packaging/linux/build-in-docker.sh` from
+  any machine with Docker → `dist/git-version-tagger_<version>_amd64.deb`
 
 ## Use
 
@@ -80,26 +141,3 @@ a failure never leaves the remote without a tag.
 Files: config in `~/Library/Application Support/git-version-tagger/` (macOS) or
 `~/.config/git-version-tagger/` (Ubuntu); log in `~/Library/Logs/git-version-tagger/` or
 `~/.local/state/git-version-tagger/log/`.
-
-## Release checklist (manual QA)
-
-Run against a throwaway remote first (see "Try it" in the implementation plan, Task 9 Step 7).
-
-macOS (light and dark menu bar):
-- [ ] Icon visible in the menu bar, no Dock icon; second launch says "already running"
-- [ ] First launch opens Settings; Save rejects a folder that is not a git repo
-- [ ] Tag ▸ marker → no dialog; notification, clipboard holds the new tag, `git ls-remote --tags origin` shows it, old tag gone; the log lists the delete/create lines
-- [ ] Same marker again → "Nothing to do"
-- [ ] Wi-Fi off → Tag ▸ marker → error dialog, ⚠ line in the menu; after Wi-Fi on the remote still has the old tag
-- [ ] Start at login on → log out/in → app running; off → LaunchAgent plist removed
-- [ ] Log window lists the git commands
-- [ ] Branches tab: edit a version in place; a second row trunk → alt-1.55 is accepted; the same branch + version twice and one version on two branches are refused; Next release… moves the checked rows
-- [ ] Menu shows one "Tag <branch> → <version>" per row (trunk with two versions has two items); tagging one keeps the other's tag; the menu stays narrow with an error shown
-- [ ] Settings → General → GitHub account: Log in with GitHub… shows a code, copies it, opens the device page; afterwards the status shows "Logged in to github.com as <you>" and tagging works over HTTPS
-
-Ubuntu 22.04 and 24.04, both "Ubuntu" (Wayland) and "Ubuntu on Xorg" sessions:
-- [ ] White icon in the top bar; menu opens on click
-- [ ] Every macOS item above (start at login → `~/.config/autostart/git-version-tagger.desktop`)
-- [ ] `git-version-tagger tag trunk --dry-run` works from a terminal
-- [ ] Branches tab: edit a version in place; a second row trunk → alt-1.55 is accepted; the same branch + version twice and one version on two branches are refused; Next release… moves the checked rows
-- [ ] Settings → General → GitHub account: Log in with GitHub… shows a code, copies it, opens the device page; afterwards the status shows "Logged in to github.com as <you>" and tagging works over HTTPS

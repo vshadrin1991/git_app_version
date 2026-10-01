@@ -7,7 +7,7 @@ from PySide6.QtSvg import QSvgRenderer
 
 from git_version_tagger.ui.icons import app_icon, resource_path, tray_icon
 
-ICON_FILES = ("tray-icon.svg", "tray-icon-light.svg", "app-icon.svg")
+ICON_FILES = ("tray-icon.svg", "tray-icon-light.svg", "tray-icon-busy.svg", "tray-icon-light-busy.svg", "app-icon.svg")
 
 
 def test_resources_are_packaged():
@@ -33,3 +33,7 @@ def test_tray_icon_renders(qapp):
 
 def test_app_icon_renders(qapp):
     assert not app_icon().pixmap(64, 64).isNull()
+
+
+def test_busy_tray_icon_renders(qapp):
+    assert not tray_icon(busy=True).pixmap(22, 22).isNull()
