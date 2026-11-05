@@ -173,9 +173,13 @@ def test_commit_subject_cannot_carry_terminal_escapes(repos, tagger):
     assert tagger.plan("trunk", "3.25").subject == "Fix ?]0;PWNED??[2J"
 
 
-def test_plan_refuses_a_template_that_looks_like_an_option(repos, tagger):
-    tagger.cfg.tag_template = "-F/etc/passwd{marker}{hash}"
-    with pytest.raises(TaggerError, match="must not start with '-'"):
+@pytest.mark.parametrize(
+    ("template", "error"),
+    [("-F/etc/passwd{marker}-{hash}", "must not start with '-'"), ("{marker}{hash}", "Put a separator")],
+)
+def test_plan_refuses_a_bad_template(repos, tagger, template, error):
+    tagger.cfg.tag_template = template  # the CLI does not run validate_config, so plan() checks it
+    with pytest.raises(TaggerError, match=error):
         tagger.plan("trunk", "3.25")
     assert repos.remote_tags() == []
 

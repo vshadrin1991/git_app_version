@@ -10,6 +10,8 @@ log = logging.getLogger("git_version_tagger.platform")
 
 LAUNCH_AGENT_LABEL = "com.vshadrin.git-version-tagger"
 DESKTOP_FILE = "git-version-tagger.desktop"
+# Characters that make an Exec= argument need quotes (Desktop Entry Specification, "The Exec key").
+_EXEC_RESERVED = frozenset(" \t\n\"'\\><~|&;$*?#()`")
 
 
 def launch_command() -> list[str]:
@@ -31,7 +33,7 @@ def autostart_path(platform: str = sys.platform, home: Path | None = None) -> Pa
 def autostart_contents(command: list[str], platform: str = sys.platform) -> bytes:
     if platform == "darwin":
         return plistlib.dumps({"Label": LAUNCH_AGENT_LABEL, "ProgramArguments": command, "RunAtLoad": True})
-    exec_line = " ".join(f'"{part}"' if " " in part else part for part in command)
+    exec_line = " ".join(_exec_argument(part) for part in command)
     return (
         "[Desktop Entry]\n"
         "Type=Application\n"
@@ -40,6 +42,15 @@ def autostart_contents(command: list[str], platform: str = sys.platform) -> byte
         "Terminal=false\n"
         "X-GNOME-Autostart-enabled=true\n"
     ).encode()
+
+
+def _exec_argument(part: str) -> str:
+    """One Exec= argument, read back exactly: quoted when it holds a reserved character (with ", `, $ and
+    \\ escaped inside the quotes), "%" doubled so it is no field code, then the string escapes of the file
+    format applied on top (a backslash is written twice, a newline as \\n)."""
+    if not _EXEC_RESERVED.isdisjoint(part):
+        part = '"' + "".join(f"\\{char}" if char in '"`$\\' else char for char in part) + '"'
+    return part.replace("%", "%%").replace("\\", "\\\\").replace("\n", "\\n")
 
 
 def set_autostart(enabled: bool, platform: str = sys.platform, home: Path | None = None) -> Path:

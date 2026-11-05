@@ -8,6 +8,7 @@ from PySide6.QtGui import QFontDatabase, QGuiApplication
 from PySide6.QtWidgets import QHBoxLayout, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
 
 from ..platform_support import bring_to_front
+from ..text import PrintableFormatter
 
 
 class _LogEmitter(QObject):
@@ -20,7 +21,7 @@ class QtLogHandler(logging.Handler):
     def __init__(self) -> None:
         super().__init__()
         self.emitter = _LogEmitter()
-        self.setFormatter(logging.Formatter("%(asctime)s  %(message)s", "%H:%M:%S"))
+        self.setFormatter(PrintableFormatter("%(asctime)s  %(message)s", "%H:%M:%S"))
 
     def emit(self, record: logging.LogRecord) -> None:
         self.emitter.message.emit(self.format(record))

@@ -10,7 +10,9 @@ with an atomic push.
 
 The installers are built by GitHub Actions on every push to `main`:
 
-1. Open the repository's **Actions** tab → **build** workflow → the latest green run.
+1. Open the repository's **Actions** tab → **build** workflow, set the **Branch** filter to `main`, and
+   open the latest green run. Only builds of `main` and of `v*` tags have installers; pull-request runs
+   publish none, so never install a package from anywhere else.
 2. Under **Artifacts**, download `git-version-tagger-macos-14` (macOS) or
    `git-version-tagger-ubuntu-22.04` (Ubuntu). You must be logged in to GitHub to download.
 3. Unzip it. Inside is `GitVersionTagger-<version>-macos-arm64.dmg` or

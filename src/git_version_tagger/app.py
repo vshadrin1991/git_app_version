@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
 from .config import default_config_path, validate_config
 from .platform_support import disable_qt_tray_activation, hide_dock_icon
+from .text import PrintableFormatter
 from .ui.icons import app_icon
 from .ui.log_window import QtLogHandler
 from .ui.tray import TrayController
@@ -35,7 +36,7 @@ def setup_logging() -> QtLogHandler:
     log_dir.mkdir(parents=True, exist_ok=True)
     log_dir.chmod(0o700)  # the log names repositories, hosts and GitHub accounts: keep it to this user
     file_handler = RotatingFileHandler(log_dir / "app.log", maxBytes=1_000_000, backupCount=3, encoding="utf-8")
-    file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    file_handler.setFormatter(PrintableFormatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     logger.addHandler(file_handler)
     return handler
 

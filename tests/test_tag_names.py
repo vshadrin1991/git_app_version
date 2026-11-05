@@ -1,4 +1,4 @@
-from git_version_tagger.tagger import TagPlan, find_marker_tags, markers_in_tags, printable, tag_name
+from git_version_tagger.tagger import TagPlan, find_marker_tags, markers_in_tags, tag_name
 
 TEMPLATE = "{marker}-#{hash}"
 
@@ -37,6 +37,11 @@ def test_find_marker_tags_matches_only_exact_marker():
     assert find_marker_tags(tags, TEMPLATE, "3.2") == ["3.2-#0000fff"]
     assert find_marker_tags(tags, TEMPLATE, "1.55") == ["1.55-#1234567"]
     assert find_marker_tags(tags, TEMPLATE, "alt-1.55") == ["alt-1.55-#abcdef1"]
+
+
+def test_marker_that_is_a_prefix_of_another_does_not_take_its_tags_with_a_dash_separator():
+    tags = ["3.2-ab-a1b2c3d", "3.25-a1b2c3d", "3.2-a1b2c3d"]
+    assert find_marker_tags(tags, "{marker}-{hash}", "3.2") == ["3.2-a1b2c3d"]
 
 
 def test_dot_in_marker_is_not_a_wildcard():
@@ -82,12 +87,3 @@ def test_markers_in_tags_follows_a_custom_template():
 def test_markers_in_tags_with_the_marker_twice_in_the_template():
     tags = ["3.25/3.25-abc1234", "3.25/3.24-abc1234"]
     assert markers_in_tags(tags, "{marker}/{marker}-{hash}") == ["3.25"]
-
-
-def test_printable_replaces_terminal_controls_and_bidi_overrides():
-    assert printable("Fix \x1b]0;PWNED\x07 \x1b[2J done") == "Fix ?]0;PWNED? ?[2J done"
-    assert printable("report‮gpj.exe") == "report?gpj.exe"
-    assert printable("line\rover") == "line?over"
-    assert printable("a\nb") == "a?b"
-    assert printable("a\nb", keep_newlines=True) == "a\nb"
-    assert printable("Релиз 3.26 ✓ → trunk") == "Релиз 3.26 ✓ → trunk"

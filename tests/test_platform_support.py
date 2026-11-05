@@ -36,6 +36,14 @@ def test_paths_with_spaces_are_quoted_in_desktop_file(tmp_path, monkeypatch):
     assert 'Exec="/opt/my apps/gvt"' in path.read_text()
 
 
+def test_desktop_file_escapes_reserved_characters_and_field_codes(tmp_path, monkeypatch):
+    command = ['/home/me/100%/a"b$c/python', "-m", "git_version_tagger"]
+    monkeypatch.setattr(platform_support, "launch_command", lambda: command)
+    path = set_autostart(True, platform="linux", home=tmp_path)
+    # Quoted with \" and \$, "%" doubled, then every backslash written twice (the file's string escapes).
+    assert r'Exec="/home/me/100%%/a\\"b\\$c/python" -m git_version_tagger' in path.read_text()
+
+
 def test_disabling_when_nothing_is_installed_is_harmless(tmp_path):
     set_autostart(False, platform="linux", home=tmp_path)
     set_autostart(False, platform="darwin", home=tmp_path)

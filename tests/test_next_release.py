@@ -1,17 +1,12 @@
-from PySide6.QtWidgets import QDialogButtonBox
-
 from git_version_tagger.config import BranchVersion
 from git_version_tagger.ui.next_release import NextReleaseDialog
+from helpers import ok_enabled
 
 
 def make_dialog(qtbot, values) -> NextReleaseDialog:
     dialog = NextReleaseDialog(values)
     qtbot.addWidget(dialog)
     return dialog
-
-
-def ok_enabled(dialog) -> bool:
-    return dialog.buttons.button(QDialogButtonBox.StandardButton.Ok).isEnabled()
 
 
 def test_every_branch_moves_to_its_next_version_by_default(qtbot):

@@ -5,9 +5,11 @@ from typing import Callable
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QAbstractItemDelegate,
     QAbstractItemView,
     QHBoxLayout,
     QHeaderView,
+    QLineEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -72,7 +74,9 @@ class BranchTable(QWidget):
 
     # ---- values -------------------------------------------------------------
     def values(self) -> list[BranchVersion]:
-        return [BranchVersion(self._text(row, BRANCH), self._text(row, VERSION)) for row in range(self.table.rowCount())]
+        """The rows, including a cell that is still being typed in."""
+        self._commit_open_editor()
+        return self._rows()
 
     def set_values(self, values: list[BranchVersion]) -> None:
         self._updating = True
@@ -120,6 +124,21 @@ class BranchTable(QWidget):
         return self._text(row, VERSION) == marker.strip()
 
     # ---- editing ------------------------------------------------------------
+    def _commit_open_editor(self) -> None:
+        """Write back a cell still being typed in: on macOS, clicking Save (or any button) leaves the
+        editor open, so its text would otherwise never reach the table."""
+        if self.table.state() != QAbstractItemView.State.EditingState:
+            return
+        editor = self.table.viewport().findChild(QLineEdit)
+        if editor is None:
+            return
+        self.table.commitData(editor)  # checked by _on_item_changed
+        self.table.closeEditor(editor, QAbstractItemDelegate.EndEditHint.NoHint)
+
+    def _rows(self) -> list[BranchVersion]:
+        """The rows as the table holds them; values() also takes an open editor's text."""
+        return [BranchVersion(self._text(row, BRANCH), self._text(row, VERSION)) for row in range(self.table.rowCount())]
+
     def _append(self, branch: str, marker: str) -> None:
         row = self.table.rowCount()
         self.table.insertRow(row)
@@ -142,7 +161,7 @@ class BranchTable(QWidget):
             return error
         if marker and (error := validate_marker(marker)):
             return error
-        others = [value for r, value in enumerate(self.values()) if r != row]
+        others = [value for r, value in enumerate(self._rows()) if r != row]  # runs inside the editor's commit
         record = BranchVersion(branch, marker)
         if record in others:
             return f"{record.label} is already in the list"

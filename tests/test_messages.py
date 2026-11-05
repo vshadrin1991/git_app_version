@@ -21,8 +21,18 @@ def test_plain_tooltip_is_not_treated_as_html():
     assert tooltip.endswith(EVIL)
 
 
-def test_no_markup_neutralises_angle_brackets():
-    assert messages.no_markup("<b>x</b> & y") == "‹b›x‹/b› & y"
+def test_no_markup_neutralises_angle_brackets_and_entities():
+    assert messages.no_markup("<b>x</b> & y") == "‹b›x‹/b› ＆ y"
+    assert "&" not in messages.no_markup("ok &#8238; done")
+
+
+def test_message_boxes_and_tooltips_drop_controls_and_bidi_overrides(qtbot):
+    text = "push failed: remote: \u202edetaliated\x1b[0m"
+    box = messages.message_box(QMessageBox.Icon.Warning, "Git Version Tagger", text)
+    qtbot.addWidget(box)
+    assert box.text() == "push failed: remote: ?detaliated?[0m"
+    assert messages.plain_tooltip("Last error:", text).endswith("?detaliated?[0m")
+    assert messages.no_markup(text).endswith("?detaliated?[0m")
 
 
 def click_on_exec(button):

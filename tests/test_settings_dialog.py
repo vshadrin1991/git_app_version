@@ -3,13 +3,13 @@ import json
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPalette
-from PySide6.QtWidgets import QFormLayout, QInputDialog
+from PySide6.QtWidgets import QFormLayout, QLineEdit
 
 from git_version_tagger.config import BranchVersion
 from git_version_tagger.git_runner import GitError
 from git_version_tagger.github_auth import LOGIN_HINT
 from git_version_tagger.tagger import Tagger
-from git_version_tagger.ui import messages
+from git_version_tagger.ui import messages, settings_dialog
 from git_version_tagger.ui.next_release import NextReleaseDialog
 from git_version_tagger.ui.settings_dialog import SettingsDialog
 from git_version_tagger.ui.style import FIELD_HEIGHT
@@ -69,11 +69,11 @@ def test_template_preview(qtbot, config):
 
 
 def pick_first(offered):
-    def fake_get_item(parent, title, label, items, current=0, editable=True):
+    def fake_pick(parent, title, label, items):
         offered.append(list(items))
-        return items[0], True
+        return items[0]
 
-    return fake_get_item
+    return fake_pick
 
 
 def push_tags(repos, *tags):
@@ -129,7 +129,7 @@ def test_branches_tab_opens_first_when_a_branch_has_no_version(qtbot, config):
 
 def test_import_branch_adds_it_without_a_version(qtbot, config, monkeypatch):
     offered = []
-    monkeypatch.setattr(QInputDialog, "getItem", pick_first(offered))
+    monkeypatch.setattr(settings_dialog, "pick", pick_first(offered))
     dialog = make_dialog(qtbot, config)
     dialog.import_branch_button.click()
     qtbot.waitUntil(lambda: "main" in dialog.branch_table.branches(), timeout=15000)
@@ -139,7 +139,7 @@ def test_import_branch_adds_it_without_a_version(qtbot, config, monkeypatch):
 
 def test_import_branch_offers_branches_that_already_have_a_version(qtbot, config, monkeypatch):
     offered, infos = [], []
-    monkeypatch.setattr(QInputDialog, "getItem", pick_first(offered))
+    monkeypatch.setattr(settings_dialog, "pick", pick_first(offered))
     monkeypatch.setattr(messages, "information", lambda parent, title, text: infos.append(text))  # never block
     config.branch_versions.append(BranchVersion("main"))  # waits for its version: not offered again
     dialog = make_dialog(qtbot, config)
@@ -157,7 +157,7 @@ def select_branch(dialog, row: int) -> None:
 def test_version_from_remote_sets_the_selected_branch(qtbot, config, repos, monkeypatch):
     push_tags(repos, "3.26-#abcdef1", "3.25-#abcdef2")
     offered = []
-    monkeypatch.setattr(QInputDialog, "getItem", pick_first(offered))
+    monkeypatch.setattr(settings_dialog, "pick", pick_first(offered))
     dialog = make_dialog(qtbot, config)
     select_branch(dialog, 0)  # trunk → 3.25
     dialog.version_from_remote_button.click()
@@ -170,7 +170,7 @@ def test_version_from_remote_sets_the_selected_branch(qtbot, config, repos, monk
 def test_version_from_remote_sets_the_selected_row_of_a_branch_with_several(qtbot, config, repos, monkeypatch):
     push_tags(repos, "alt-1.55-#abcdef1")
     config.branch_versions.append(BranchVersion("trunk"))  # trunk → 3.25 is row 0
-    monkeypatch.setattr(QInputDialog, "getItem", pick_first([]))
+    monkeypatch.setattr(settings_dialog, "pick", pick_first([]))
     dialog = make_dialog(qtbot, config)
     select_branch(dialog, 2)  # the second trunk row, still without a version
     dialog.version_from_remote_button.click()
@@ -185,7 +185,7 @@ def test_version_from_remote_sets_the_selected_row_of_a_branch_with_several(qtbo
 def test_version_from_remote_uses_the_tag_format_being_edited(qtbot, config, repos, monkeypatch):
     push_tags(repos, "v4.0+abcdef1", "3.26-#abcdef2")
     offered = []
-    monkeypatch.setattr(QInputDialog, "getItem", pick_first(offered))
+    monkeypatch.setattr(settings_dialog, "pick", pick_first(offered))
     dialog = make_dialog(qtbot, config)
     dialog.tag_template.setText("v{marker}+{hash}")  # not saved yet
     select_branch(dialog, 0)
@@ -226,12 +226,12 @@ def test_version_for_a_branch_removed_meanwhile_is_dropped(qtbot, config, repos,
     push_tags(repos, "3.26-#abcdef1")
     dialog = make_dialog(qtbot, config)
 
-    def remove_trunk_then_pick(parent, title, label, items, current=0, editable=True):
+    def remove_trunk_then_pick(parent, title, label, items):
         select_branch(dialog, 0)
         dialog.branch_table.remove_button.click()  # the user removed trunk before the answer arrived
-        return items[0], True
+        return items[0]
 
-    monkeypatch.setattr(QInputDialog, "getItem", remove_trunk_then_pick)
+    monkeypatch.setattr(settings_dialog, "pick", remove_trunk_then_pick)
     select_branch(dialog, 0)
     dialog.version_from_remote_button.click()
     qtbot.waitUntil(dialog.version_from_remote_button.isEnabled, timeout=15000)
@@ -268,3 +268,17 @@ def test_labels_with_outside_text_are_plain(qtbot, config):
     dialog = make_dialog(qtbot, config)
     for label in (dialog.github.status, dialog.github.hint, dialog.template_preview, dialog.branch_table.error_label):
         assert label.textFormat() == Qt.TextFormat.PlainText
+
+
+def test_save_keeps_a_version_still_being_typed_in_the_table(qtbot, config, warnings):
+    config.branch_versions.append(BranchVersion("qa-3.23"))
+    dialog = make_dialog(qtbot, config)
+    dialog.show()
+    table = dialog.branch_table.table
+    table.setCurrentCell(2, 1)
+    table.editItem(table.item(2, 1))
+    editor = table.viewport().findChild(QLineEdit)
+    editor.setText("3.23")  # Save is clicked while the cell editor is still open (macOS buttons take no focus)
+    assert accepted_after_save(dialog)
+    assert warnings == []
+    assert dialog.current_config().branch_versions[2] == BranchVersion("qa-3.23", "3.23")

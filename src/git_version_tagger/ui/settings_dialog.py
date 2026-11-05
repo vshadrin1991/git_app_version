@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
     QPushButton,
     QTabWidget,
@@ -26,6 +25,7 @@ from . import messages
 from .branch_table import BranchTable
 from .github_account import GitHubAccountBox
 from .next_release import NextReleaseDialog
+from .pick_dialog import pick
 from .style import MARGINS, SPACING, column, form_layout, line_edit, row, secondary
 from .worker import run_in_background
 
@@ -201,5 +201,4 @@ class SettingsDialog(QDialog):
             message = f"Every {noun} on the remote is already in the list." if values else f"No {nouns} found on the remote."
             messages.information(self, f"Import {nouns}", message)
             return None
-        value, ok = QInputDialog.getItem(self, f"Import {noun}", f"{noun.capitalize()} on the remote:", candidates, 0, False)
-        return value if ok and value else None
+        return pick(self, f"Import {noun}", f"{noun.capitalize()} on the remote:", candidates)

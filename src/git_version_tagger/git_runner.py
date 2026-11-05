@@ -7,18 +7,32 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from .text import printable
+
 log = logging.getLogger("git_version_tagger.git")
 
 DEFAULT_TIMEOUT = 120.0
 # GUI apps on macOS start with PATH=/usr/bin:/bin:/usr/sbin:/sbin, so Homebrew git is not on it.
 GIT_CANDIDATES = ("/opt/homebrew/bin/git", "/usr/local/bin/git", "/usr/bin/git")
+# These point git at another repository than the one it runs in (git sets GIT_DIR for its hooks, so the
+# CLI started from a hook would fetch, prune and push there). Config variables (GIT_CONFIG_*) are kept.
+REPOSITORY_VARIABLES = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_NAMESPACE",
+)
 
 
 class GitError(RuntimeError):
     def __init__(self, command: list[str], returncode: int | None, stderr: str) -> None:
         self.command = command
         self.returncode = returncode
-        self.stderr = stderr.strip()
+        # The remote writes part of stderr ("remote: ..."): no terminal controls or bidi overrides past here.
+        self.stderr = printable(stderr.strip(), keep_newlines=True)
         super().__init__(f"git {' '.join(command)} failed: {self.stderr or f'exit code {returncode}'}")
 
 
@@ -32,7 +46,8 @@ class GitRunner:
         """Run `git <args>` in the repository; return stripped stdout or raise GitError."""
         command = list(args)
         log.info("$ git %s", " ".join(command))
-        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"}
+        env = {key: value for key, value in os.environ.items() if key not in REPOSITORY_VARIABLES}
+        env.update(GIT_TERMINAL_PROMPT="0", LC_ALL="C")
         try:
             proc = subprocess.run(
                 [self.git, *command],

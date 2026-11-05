@@ -197,6 +197,20 @@ def test_next_version(marker, expected):
     assert next_version(marker) == expected
 
 
+@pytest.mark.parametrize("template", ["{marker}{hash}", "{marker}ab{hash}", "{hash}{marker}", "v{marker}0{hash}"])
+def test_template_needs_a_non_hex_separator_between_marker_and_hash(template):
+    # With {marker}{hash}, 3.25abcd1 would also read as 3.2 + 5abcd1: tagging 3.2 would delete 3.25's tag.
+    assert validate_template(template) == "Put a separator such as '-#' between {marker} and {hash}"
+
+
+@pytest.mark.parametrize(
+    "template",
+    ["{marker}-#{hash}", "{marker}-{hash}", "v{marker}+{hash}", "{hash}-{marker}", "{marker}_v{hash}", "{marker}/{marker}-{hash}"],
+)
+def test_templates_with_a_separator_are_accepted(template):
+    assert validate_template(template) is None
+
+
 def test_template_must_not_look_like_an_option():
     assert validate_template("-F/etc/passwd{marker}{hash}") == "Tag template must not start with '-'"
     assert validate_template("v{marker}-{hash}") is None

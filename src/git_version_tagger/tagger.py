@@ -5,22 +5,11 @@ import logging
 import re
 from dataclasses import dataclass
 
-from .config import MARKER_PATTERN, AppConfig, validate_marker, validate_remote, validate_template
+from .config import HASH_PATTERN, MARKER_PATTERN, AppConfig, validate_marker, validate_remote, validate_template
 from .git_runner import GitError, GitRunner, find_git
+from .text import printable
 
 log = logging.getLogger("git_version_tagger.tagger")
-
-HASH_PATTERN = "[0-9a-f]{4,64}"
-
-# C0/C1 control characters except "\n", plus bidi marks and overrides: text from the repository (commit
-# subjects, git's stderr) must not rewrite the terminal or reorder what the user reads.
-_UNPRINTABLE = re.compile("[\x00-\x09\x0b-\x1f\x7f-\x9f‎‏‪-‮⁦-⁩]")
-
-
-def printable(text: str, keep_newlines: bool = False) -> str:
-    """`text` with control characters and bidi overrides replaced by "?"; newlines too unless kept."""
-    cleaned = _UNPRINTABLE.sub("?", text)
-    return cleaned if keep_newlines else cleaned.replace("\n", "?")
 
 
 class TaggerError(RuntimeError):

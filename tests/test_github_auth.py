@@ -153,10 +153,25 @@ def test_gh_never_waits_for_a_terminal(fake_gh, monkeypatch):
         ("../app.git", None),
         ("app.git", None),
         ("file:///srv/git/app.git", None),
+        ("https://gіthub.com/acme/app", RemoteUrl("gіthub.com", ssh=False)),  # Cyrillic і: a real IDN host
+        # Not host names: the host becomes `gh --hostname <host>` and a credential.https://<host>.helper key.
+        ("git@-oProxyCommand=x:r.git", None),
+        ("git@a b:r.git", None),
+        ("ssh://git@-x/r.git", None),
+        ("https://exa_mple.com/r", None),
+        ("https://a..b/r", None),
     ],
 )
 def test_parse_remote_url(url, expected):
     assert parse_remote_url(url) == expected
+
+
+def test_gh_errors_carry_no_terminal_controls():
+    assert str(GhError("gh auth status failed: \x1b[2J\u202ehi")) == "gh auth status failed: ?[2J?hi"
+
+
+def test_status_shows_a_server_chosen_login_literally():
+    assert AuthStatus("ghe.acme.io", login="bob\u202egnp").describe() == "Logged in to ghe.acme.io as bob?gnp"
 
 
 DEVICE_OUTPUT = (

@@ -15,8 +15,12 @@ CONFIG_VERSION = 2
 DEFAULT_TEMPLATE = "{marker}-#{hash}"
 
 MARKER_PATTERN = r"[A-Za-z0-9][A-Za-z0-9._-]*"  # also used by tagger.markers_in_tags
+HASH_CHARS = "0-9a-f"  # the short commit hash in a tag name
+HASH_PATTERN = f"[{HASH_CHARS}]{{4,64}}"  # used by tagger to find the tags of a marker
 _MARKER_RE = re.compile(MARKER_PATTERN)
 _BRANCH_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
+# {marker} and {hash} with only hash characters between them, in either order (see validate_template).
+_NO_SEPARATOR_RE = re.compile(r"\{marker\}[%(h)s]*\{hash\}|\{hash\}[%(h)s]*\{marker\}" % {"h": HASH_CHARS})
 
 
 @dataclass
@@ -151,6 +155,11 @@ def validate_template(value: str) -> str | None:
         return "Tag template must contain {marker} and {hash}"
     if value.startswith("-"):  # git would read the tag name as an option (e.g. -F<file>)
         return "Tag template must not start with '-'"
+    # With only hash characters between {marker} and {hash}, one version's tags are also another's: in
+    # {marker}{hash}, 3.25abcd1 reads as 3.2 + 5abcd1, and tagging 3.2 would delete 3.25's tag on the remote.
+    # One other character in between fixes where the hash starts.
+    if _NO_SEPARATOR_RE.search(value):
+        return "Put a separator such as '-#' between {marker} and {hash}"
     return None
 
 

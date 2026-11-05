@@ -2,10 +2,17 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from PySide6.QtWidgets import QDialogButtonBox
+
 
 def git(cwd: Path, *args: str) -> str:
     """Run git in a test repository without GitRunner, so fixtures don't depend on the code under test."""
     return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+
+
+def ok_enabled(dialog) -> bool:
+    """Whether the OK button of a dialog with a `buttons` QDialogButtonBox can be clicked."""
+    return dialog.buttons.button(QDialogButtonBox.StandardButton.Ok).isEnabled()
 
 
 @dataclass

@@ -14,6 +14,7 @@ from ..github_auth import (
     parse_device_prompt,
     setup_git,
 )
+from ..text import printable
 from .style import plain
 from .worker import run_in_background
 
@@ -69,7 +70,7 @@ class GitHubLoginDialog(QDialog):
     def _read_output(self) -> None:
         self._raw += self.process.readAllStandardOutput().data()
         output = self._raw.decode("utf-8", "replace")
-        self.log.setPlainText(output)
+        self.log.setPlainText(printable(output, keep_newlines=True))
         prompt = parse_device_prompt(output, self.host)
         if prompt is None or prompt == self.prompt:
             return
@@ -78,14 +79,15 @@ class GitHubLoginDialog(QDialog):
         self.prompt = prompt
         self.code.setText(prompt.code)
         on_host = is_device_page_of(prompt.url, self.host)
+        shown_url = printable(prompt.url)  # the server picks it for any host but github.com
         if on_host:
             self.status.setText(
-                f"Open {prompt.url}, sign in and enter this code (it is already on the clipboard). "
+                f"Open {shown_url}, sign in and enter this code (it is already on the clipboard). "
                 "This window closes by itself when GitHub confirms."
             )
         else:
             self.status.setText(
-                f"gh asked to open {prompt.url}, which is not on {ascii_host(self.host)}, so this window "
+                f"gh asked to open {shown_url}, which is not on {ascii_host(self.host)}, so this window "
                 "will not open it. Enter the code only on a page you trust."
             )
         self.open_button.setEnabled(on_host)

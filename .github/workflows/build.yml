@@ -17,8 +17,11 @@ jobs:
         os: [macos-14, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # Actions are pinned to commits: a moved tag cannot change what builds the installers.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false  # nothing pushes; keep the token out of .git/config while pip runs
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
       - name: Install Qt runtime libraries
@@ -34,7 +37,10 @@ jobs:
       - name: Build Ubuntu package
         if: runner.os == 'Linux'
         run: packaging/linux/build-deb.sh
-      - uses: actions/upload-artifact@v4
+      # Only builds of main and v* tags publish installers: a pull request (from a fork, too) could change
+      # the build scripts, and its artifacts would look just like the real ones.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: github.event_name == 'push'
         with:
           name: git-version-tagger-${{ matrix.os }}
           path: |

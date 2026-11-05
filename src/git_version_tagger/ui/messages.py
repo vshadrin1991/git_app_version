@@ -2,16 +2,21 @@
 
 Errors quote git and gh, and git quotes the remote ("remote: ..."), so the text is not ours. Qt
 renders text that looks like HTML as HTML, and QMessageBox opens its links, so text from outside
-must never reach Qt as rich text.
+must never reach Qt as rich text. Its control characters and bidi overrides are replaced too, so it
+cannot reorder what the user reads (text.printable).
 """
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMessageBox, QWidget
 
+from ..text import printable
+
+_NO_MARKUP = str.maketrans({"<": "‹", ">": "›", "&": "＆"})
+
 
 def message_box(icon: QMessageBox.Icon, title: str, text: str, parent: QWidget | None = None) -> QMessageBox:
-    box = QMessageBox(icon, title, text, QMessageBox.StandardButton.Ok, parent)
+    box = QMessageBox(icon, title, printable(text, keep_newlines=True), QMessageBox.StandardButton.Ok, parent)
     box.setTextFormat(Qt.TextFormat.PlainText)
     return box
 
@@ -41,9 +46,10 @@ def plain_tooltip(heading: str, text: str) -> str:
     """Tooltip text shown literally: Qt decides "is this HTML?" from the first line only, so a plain
     heading line keeps the rest literal (native macOS menus show tooltips as plain text anyway).
     Escaping "<" as "&lt;" would not work: Qt takes "&lt;" itself as a sign of HTML."""
-    return f"{heading}\n{text}"
+    return f"{heading}\n{printable(text, keep_newlines=True)}"
 
 
 def no_markup(text: str) -> str:
-    """For desktop notifications: some Linux notification servers render markup in the message."""
-    return text.replace("<", "‹").replace(">", "›")
+    """For desktop notifications: some Linux notification servers render markup in the message, both tags
+    and entities (&#8238; would be a bidi override), so neither "<" nor "&" gets through."""
+    return printable(text, keep_newlines=True).translate(_NO_MARKUP)

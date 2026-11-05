@@ -9,7 +9,8 @@ from pathlib import Path
 from . import __version__
 from .config import AppConfig, default_config_path, load_config, validate_branch, validate_marker
 from .git_runner import GitError
-from .tagger import TaggerError, make_tagger, printable
+from .tagger import TaggerError, make_tagger
+from .text import PrintableFormatter, printable
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,7 +38,7 @@ def main(argv: list[str] | None = None) -> int:
         return run_gui(args.config)
 
     handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(logging.Formatter("%(message)s"))
+    handler.setFormatter(PrintableFormatter("%(message)s"))
     logger = logging.getLogger("git_version_tagger")
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)

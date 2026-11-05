@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 from .git_runner import GitError, GitRunner
+from .text import printable
 
 log = logging.getLogger("git_version_tagger.github")
 
@@ -24,10 +25,16 @@ _LOGGED_IN_TEXT = re.compile(r"Logged in to (?P<host>\S+) (?:account|as) (?P<log
 _SCP_LIKE_URL = re.compile(r"(?:[^@/]+@)?(?P<host>[^:/]+):(?!//)")  # git@github.com:acme/app.git
 _DEVICE_CODE = re.compile(r"one-time code: (?P<code>[A-Z0-9]{4}-[A-Z0-9]{4})")
 _URL = re.compile(r"https?://\S+(?=\s)")  # only a complete URL: output arrives in chunks
+# A DNS host name in its ASCII form: what may follow `gh --hostname` and name a credential.https://<host> key.
+_HOSTNAME = re.compile(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*")
 
 
 class GhError(RuntimeError):
-    """gh could not be run or answered something unexpected. The message is shown as-is."""
+    """gh could not be run or answered something unexpected. The message is shown as-is, minus control
+    characters: it quotes gh, and gh quotes the server."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(printable(message, keep_newlines=True))
 
 
 @dataclass(frozen=True)
@@ -43,12 +50,13 @@ class AuthStatus:
     def describe(self) -> str:
         if self.login is None:
             return f"Not logged in to {ascii_host(self.host)}"
+        login = printable(self.login)  # the server chose it
         if self.problem:
             return (
-                f"The login to {ascii_host(self.host)} as {self.login} does not work ({self.problem})"
+                f"The login to {ascii_host(self.host)} as {login} does not work ({printable(self.problem)})"
                 " - log in again"
             )
-        return f"Logged in to {ascii_host(self.host)} as {self.login}"
+        return f"Logged in to {ascii_host(self.host)} as {login}"
 
 
 @dataclass(frozen=True)
@@ -147,16 +155,19 @@ def parse_status_text(output: str, host: str, returncode: int) -> AuthStatus:
 
 
 def parse_remote_url(url: str) -> RemoteUrl | None:
-    """Host of a git remote URL; None for local paths and file:// remotes (then the app offers github.com)."""
+    """Host of a git remote URL; None for local paths, file:// remotes and anything that is not a host name
+    (then the app offers github.com). The host goes to gh as --hostname, so it must be a plain host name."""
     url = url.strip()
     if "://" in url:
         parts = urlsplit(url)
-        if parts.scheme in ("http", "https", "ssh", "git+ssh") and parts.hostname:
-            return RemoteUrl(parts.hostname, ssh=parts.scheme in ("ssh", "git+ssh"))
+        if parts.scheme not in ("http", "https", "ssh", "git+ssh") or not parts.hostname:
+            return None
+        remote = RemoteUrl(parts.hostname, ssh=parts.scheme in ("ssh", "git+ssh"))
+    elif match := _SCP_LIKE_URL.match(url):
+        remote = RemoteUrl(match.group("host").lower(), ssh=True)
+    else:
         return None
-    if match := _SCP_LIKE_URL.match(url):
-        return RemoteUrl(match.group("host").lower(), ssh=True)
-    return None
+    return remote if _HOSTNAME.fullmatch(ascii_host(remote.host)) else None
 
 
 def login_arguments(host: str) -> list[str]:

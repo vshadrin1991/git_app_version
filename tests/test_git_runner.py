@@ -55,6 +55,23 @@ def test_timeout_raises_git_error(tmp_path, monkeypatch):
         GitRunner(tmp_path, timeout=1).run("fetch")
 
 
+def test_git_error_strips_terminal_controls_and_bidi_overrides_from_stderr():
+    error = GitError(["push"], 1, "remote: \x1b[31mdenied\u202e\x07\nfatal: done\n")
+    assert error.stderr == "remote: ?[31mdenied??\nfatal: done"
+    assert "\x1b" not in str(error) and "\u202e" not in str(error)
+
+
+def test_git_ignores_variables_that_point_at_another_repository(tmp_path, monkeypatch):
+    project, other = tmp_path / "project", tmp_path / "other"
+    for repo in (project, other):
+        repo.mkdir()
+        git(repo, "init")
+    # git sets these for its hooks: the CLI started from a hook must still work on its own project.
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(other))
+    assert GitRunner(project).run("rev-parse", "--show-toplevel") == str(project.resolve())
+
+
 def test_find_git_prefers_configured_path():
     assert find_git("/custom/git") == "/custom/git"
 
